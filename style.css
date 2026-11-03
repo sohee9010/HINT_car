@@ -1,0 +1,471 @@
+/* Layout: one-screen arcade cabinet — HUD strip on top, chase-camera 3D road in the middle, fuel gauge and three big pedals at the bottom */
+:root {
+  --night: #13151b;
+  --panel: #1f232d;
+  --edge: #353b4a;
+  --asphalt: #2a2e38;
+  --paint: #ece6d4;
+  --amber: #ffb21e;
+  --kerb: #d8463b;
+  --go: #3fbf7f;
+  --ink: #f5f2ea;
+  --muted: #9aa0ad;
+  --font-display: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html {
+  box-sizing: border-box;
+  height: 100%;
+  /* keep content clear of a phone's notch and home bar */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+body {
+  height: 100%;
+  margin: 0;
+  font-size: 14px;
+  background: var(--night);
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color: transparent;
+}
+.app {
+  height: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 10px;
+  padding-block: 10px;
+}
+
+/* HUD: a supercar dashboard — time on the left, speedometer in the middle, score on the right */
+.hud {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 6px;
+  background: linear-gradient(180deg, #272c38, #1a1e27);
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .06), 0 6px 18px rgb(0 0 0 / .35);
+  font-variant-numeric: tabular-nums;
+}
+.hud-cell { display: grid; gap: 3px; min-width: 0; }
+.hud-cell.right { text-align: right; }
+.hud-label { font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+.hud-time, .hud-score {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 7.5vw, 34px);
+  line-height: 1;
+  white-space: nowrap;
+}
+.hud-time { color: var(--amber); text-shadow: 0 0 14px rgb(255 178 30 / .35); }
+.hud-time small { font-size: .5em; margin-left: 2px; color: var(--muted); text-shadow: none; }
+.hud-score { color: var(--ink); }
+.gauge { position: relative; width: 96px; height: 58px; display: grid; justify-items: center; }
+.gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.gauge-track, .gauge-fill { fill: none; stroke-width: 7; stroke-linecap: round; }
+.gauge-track { stroke: var(--edge); }
+.gauge-fill { stroke: var(--amber); stroke-dasharray: 8 100; transition: stroke-dasharray .4s, stroke .4s; filter: drop-shadow(0 0 4px rgb(255 178 30 / .6)); }
+.gauge.hot .gauge-fill { stroke: var(--kerb); filter: drop-shadow(0 0 5px rgb(216 70 59 / .7)); }
+.gauge-num { position: absolute; bottom: 12px; font-family: var(--font-display); font-size: 22px; line-height: 1; }
+.gauge-unit { position: absolute; bottom: 0; font-size: 10px; color: var(--muted); letter-spacing: .06em; }
+
+/* Fuel gauge sits right under the road, where eyes and thumbs already are */
+.fuelrow {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #272c38, #1a1e27);
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .06);
+  font-size: 13px; font-weight: 600;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.pump { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.fuel-end { font-family: var(--font-display); font-weight: 400; font-size: 13px; color: var(--muted); }
+.fuel-bar { position: relative; flex: 1; min-width: 0; height: 14px; border-radius: 7px; background: #11141a; box-shadow: inset 0 1px 3px rgb(0 0 0 / .6); overflow: hidden; }
+.fuel-bar i { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; border-radius: 7px; background: linear-gradient(180deg, #ffd36b, var(--amber) 45%, #e08a00); box-shadow: 0 0 10px rgb(255 178 30 / .5); transition: width .25s; }
+.fuel-count { padding: 3px 9px; border-radius: 999px; background: rgb(255 178 30 / .14); }
+.fuelrow.low .fuel-count { background: rgb(216 70 59 / .18); }
+/* tick at every hop's worth of fuel (flyCost = 35) */
+.fuel-bar::before, .fuel-bar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--night); z-index: 1; }
+.fuel-bar::before { left: 35%; }
+.fuel-bar::after { left: 70%; }
+.fuel-count { min-width: 5.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.fuelrow.low { color: var(--kerb); border-color: var(--kerb); }
+.fuelrow.low .fuel-bar i { background: var(--kerb); box-shadow: none; }
+.fuelrow.gain { animation: gain .6s ease-out; }
+/* rainbow flight: spectrum border and timer pill */
+.fuelrow.rainbow {
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, #272c38, #1a1e27) padding-box, linear-gradient(90deg, #ff5f6d, #ffc371, #5ee7a0, #4facfe, #a18cd1) border-box;
+}
+.fuelrow.rainbow .fuel-count { background: linear-gradient(90deg, #ff5f6d, #ffc371, #5ee7a0, #4facfe, #a18cd1); color: var(--night); }
+@keyframes gain { 0% { box-shadow: 0 0 0 0 rgb(255 178 30 / .9); } 100% { box-shadow: 0 0 0 12px rgb(255 178 30 / 0); } }
+
+/* Road */
+.stage {
+  position: relative;
+  min-height: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #2a3050;
+}
+.stage.shake { animation: shake .35s ease-out; }
+canvas#road { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.flash { position: absolute; inset: 0; background: var(--kerb); opacity: 0; pointer-events: none; }
+.flash.on { animation: flash .45s ease-out; }
+@keyframes flash { 0% { opacity: .85; } 100% { opacity: 0; } }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+/* Alerts pop up near the bottom of the road, right under the player's eyes */
+.toast {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 5;
+  transform: translate(-50%, 12px) scale(.9);
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: var(--amber);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 20px;
+  white-space: nowrap;
+  box-shadow: 0 4px 0 #8a5600, 0 0 22px rgb(255 178 30 / .55);
+  opacity: 0;
+  transition: opacity .18s, transform .18s;
+  pointer-events: none;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+/* Music switch floats in the road's top-right corner, above every overlay */
+.sound-btn {
+  position: absolute;
+  top: 10px; right: 10px;
+  z-index: 20;
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: rgb(19 21 27 / .72);
+  color: var(--amber);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.sound-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sound-btn .spk { fill: currentColor; }
+.sound-btn .off { display: none; }
+.sound-btn.muted { color: var(--muted); }
+.sound-btn.muted .on { display: none; }
+.sound-btn.muted .off { display: inline; }
+.sound-btn:focus-visible { outline: 3px solid var(--paint); outline-offset: 3px; }
+
+/* Overlays scroll inside the road area if they ever run taller than it */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-y: auto;
+  padding: 16px;
+  text-align: center;
+  background: rgb(19 21 27 / .72);
+}
+.overlay.over { background: rgb(110 18 18 / .62); }
+.overlay.guide { background: rgb(19 21 27 / .94); }
+.card { margin: auto; display: grid; gap: 12px; justify-items: center; width: 100%; max-width: 320px; }
+.card.wide { max-width: 380px; }
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(38px, 12vw, 54px);
+  line-height: 1.05;
+  margin: 0;
+  color: var(--ink);
+  text-wrap: balance;
+  text-shadow: 0 4px 0 var(--kerb);
+}
+.title.small { font-size: clamp(26px, 8vw, 32px); text-shadow: 0 3px 0 var(--kerb); }
+.lede { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.55; text-wrap: balance; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; align-items: center; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.keys span { display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+kbd {
+  display: inline-grid; place-items: center;
+  min-width: 24px; height: 22px; padding: 0 5px;
+  border: 1px solid var(--edge); border-bottom-width: 3px; border-radius: 6px;
+  background: var(--panel); color: var(--ink); font-family: var(--font-body); font-size: 12px;
+}
+.result { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 26px; font-variant-numeric: tabular-nums; }
+.result small { display: block; font-family: var(--font-body); font-size: 14px; color: var(--ink); opacity: .8; margin-top: 4px; }
+.cta {
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 13px 30px;
+  background: var(--amber);
+  color: var(--night);
+  font-family: var(--font-display);
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b37708;
+  touch-action: manipulation;
+}
+.cta:active { transform: translateY(3px); box-shadow: 0 1px 0 #b37708; }
+/* Stacked buttons share one width; the secondary one sits a little lower */
+.stack { display: grid; gap: 16px; width: max-content; }
+.stack > * { width: 100%; }
+.home {
+  appearance: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 9px 12px;
+  border: 2px solid var(--amber);
+  border-radius: 12px;
+  background: rgb(19 21 27 / .6);
+  color: var(--amber);
+  font-family: var(--font-display);
+  font-size: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.home span { font-family: var(--font-body); font-size: 17px; line-height: 1; }
+.home:active { transform: translateY(2px); }
+.cta:focus-visible, .pad:focus-visible, .home:focus-visible, .swatch:focus-visible { outline: 3px solid var(--paint); outline-offset: 3px; }
+
+/* Main menu: title, one big start button, two small options underneath */
+#startScreen { background: radial-gradient(ellipse at 50% 42%, rgb(19 21 27 / .8), rgb(19 21 27 / .3)); }
+#startScreen .card { gap: 16px; }
+.cta.big { padding: 15px 44px; font-size: 24px; }
+.menu-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 4px; }
+.chip-btn {
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: rgb(31 35 45 / .88);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.chip-btn:hover { border-color: var(--amber); }
+.chip-btn:focus-visible { outline: 3px solid var(--paint); outline-offset: 3px; }
+.dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 2px var(--night), 0 0 0 3px var(--muted); }
+
+/* Weather roulette: a slot reel that rattles through the weathers, then locks on one */
+.overlay.roulette { background: rgb(19 21 27 / .55); }
+.r-label { font-size: 17px; font-weight: 600; letter-spacing: .04em; color: var(--ink); text-shadow: 0 2px 6px rgb(0 0 0 / .6); }
+.reel {
+  width: 210px; max-width: 100%; height: 92px;
+  display: grid; place-items: center;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 3px solid var(--amber);
+  background: rgb(19 21 27 / .88);
+  box-shadow: 0 0 0 4px rgb(255 178 30 / .15), inset 0 10px 14px rgb(0 0 0 / .55), inset 0 -10px 14px rgb(0 0 0 / .55);
+}
+#reelText { font-family: var(--font-display); font-size: 54px; line-height: 1; color: var(--ink); }
+#reelText.tick { animation: reel .09s linear; }
+@keyframes reel { from { transform: translateY(-75%); opacity: .25; } to { transform: none; opacity: 1; } }
+.reel.locked { animation: lock .45s ease-out; box-shadow: 0 0 0 6px rgb(255 178 30 / .35), 0 0 34px rgb(255 178 30 / .65); }
+.reel.locked #reelText { color: var(--amber); }
+@keyframes lock { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.r-sub { min-height: 1.5em; font-size: 16px; font-weight: 600; color: var(--ink); text-shadow: 0 2px 6px rgb(0 0 0 / .6); }
+
+/* Car color picker: a panel at the top so the car stays visible underneath */
+.overlay.garage { background: linear-gradient(180deg, rgb(19 21 27 / .9), rgb(19 21 27 / 0) 65%); }
+.garage-panel { margin: 0 auto auto; display: grid; gap: 16px; justify-items: center; width: 100%; max-width: 320px; padding-top: 8px; }
+.swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; }
+.swatch {
+  appearance: none;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: 3px solid var(--night);
+  box-shadow: 0 0 0 2px var(--edge);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.swatch[aria-checked="true"] { box-shadow: 0 0 0 3px var(--ink); transform: scale(1.1); }
+
+/* Nickname + live leaderboard */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.nick {
+  width: 100%; max-width: 250px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--edge);
+  background: rgb(19 21 27 / .85);
+  color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; font-weight: 600;
+  text-align: center;
+}
+.nick::placeholder { color: var(--muted); font-weight: 400; }
+.nick:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
+.rank-note { margin: 0; font-size: 13px; color: var(--muted); }
+.rank-list { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 6px; }
+.rank-list li {
+  display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.rank-list li.me { border-color: var(--amber); background: rgb(255 178 30 / .1); }
+.rank-no { font-family: var(--font-display); font-size: 18px; color: var(--muted); }
+.rank-list li:nth-child(1) .rank-no { color: #ffd34d; }
+.rank-list li:nth-child(2) .rank-no { color: #d6dde8; }
+.rank-list li:nth-child(3) .rank-no { color: #e0a46a; }
+.rank-nick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.rank-score { font-family: var(--font-display); color: var(--amber); }
+.over-rank { display: grid; gap: 8px; justify-items: center; width: 100%; }
+.over-rank .rank-msg { margin: 0; font-size: 15px; font-weight: 600; }
+.over-rank .row { display: flex; gap: 8px; width: 100%; max-width: 280px; }
+.over-rank .row .nick { flex: 1; min-width: 0; padding: 8px 10px; font-size: 14px; }
+.small-btn {
+  appearance: none; border: 0; border-radius: 10px; padding: 8px 14px;
+  background: var(--amber); color: var(--night);
+  font-family: var(--font-body); font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.link-btn { appearance: none; background: none; border: 0; color: var(--ink); text-decoration: underline; font-size: 13px; cursor: pointer; }
+.small-btn:focus-visible, .link-btn:focus-visible { outline: 3px solid var(--paint); outline-offset: 2px; }
+
+/* Obstacle guide */
+.guide-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; width: 100%; text-align: left; }
+.guide-list li {
+  display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+}
+.guide-list li.good { border-color: var(--go); }
+.thumb { width: 96px; aspect-ratio: 4 / 3; max-width: 100%; border-radius: 8px; background: #2a3050; display: block; }
+.g-name { display: flex; gap: 6px; align-items: center; font-weight: 600; font-size: 15px; }
+.chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--kerb); color: var(--ink); }
+.chip.good { background: var(--go); color: var(--night); }
+.g-desc { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+/* Controls: two raised steering keys and a glowing boost button between them */
+.pads { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding-bottom: 5px; }
+.pad {
+  appearance: none;
+  display: grid; place-items: center; align-content: center;
+  height: clamp(60px, 11vh, 88px);
+  border-radius: 18px;
+  border: 1px solid var(--edge);
+  background: linear-gradient(180deg, #2c323f, #1c2029);
+  color: var(--ink);
+  box-shadow: 0 5px 0 #0b0d12, inset 0 1px 0 rgb(255 255 255 / .08);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform .06s, box-shadow .06s, color .1s;
+}
+.pad svg { width: 34px; height: 34px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.pad.down { transform: translateY(4px); box-shadow: 0 1px 0 #0b0d12, inset 0 1px 0 rgb(255 255 255 / .08); color: var(--amber); border-color: var(--amber); }
+/* Boost button: a dark key with a glowing amber rim and a neon double chevron, not a flat yellow block */
+.pad.flybtn {
+  gap: 4px;
+  border: 2px solid var(--amber);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgb(255 178 30 / .3), transparent 62%),
+    linear-gradient(180deg, #2c323f, #171a22);
+  color: var(--amber);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: .32em;
+  box-shadow: 0 5px 0 #0b0d12, inset 0 0 14px rgb(255 178 30 / .22), 0 0 14px rgb(255 178 30 / .28);
+  animation: boost 1.6s ease-in-out infinite;
+}
+.pad.flybtn svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2.8; filter: drop-shadow(0 0 6px rgb(255 178 30 / .75)); }
+.pad.flybtn span { padding-left: .32em; }   /* balance the letter-spacing so the word sits centered */
+.pad.flybtn.down { transform: translateY(4px); background: var(--amber); color: var(--night); box-shadow: 0 1px 0 #0b0d12, 0 0 26px rgb(255 178 30 / .7); }
+.pad.flybtn.down svg { filter: none; }
+.pad.flybtn.cooling {
+  border-color: var(--edge);
+  background: linear-gradient(180deg, #2c323f, #1c2029);
+  color: var(--muted);
+  box-shadow: 0 5px 0 #0b0d12;
+  animation: none;
+}
+.pad.flybtn.cooling svg { filter: none; }
+.pad.flybtn.rainbow {
+  border-color: transparent;
+  background: linear-gradient(180deg, #2c323f, #171a22) padding-box, linear-gradient(135deg, #ff5f6d, #ffc371, #5ee7a0, #4facfe, #a18cd1) border-box;
+  color: var(--ink);
+}
+.pad.flybtn.rainbow svg { filter: drop-shadow(0 0 6px rgb(255 255 255 / .6)); }
+@keyframes boost {
+  50% { box-shadow: 0 5px 0 #0b0d12, inset 0 0 20px rgb(255 178 30 / .38), 0 0 24px rgb(255 178 30 / .5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage.shake { animation: none; }
+  .flash.on { animation-duration: .9s; }
+  .pad.flybtn { animation: none; }
+}
+
+/* Key reminder for mouse-and-keyboard players (hidden on touch screens) */
+.keybar {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.keybar span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+/* Computer (precise pointer that can hover): a landscape game that fills the browser window.
+   Drive with the keyboard, so the on-screen pedals give way to the key reminder. */
+@media (hover: hover) and (pointer: fine) {
+  .pads { display: none; }
+  .keybar { display: flex; }
+  .app { max-width: 1400px; }
+  .hud { padding-inline: 24px; }
+  .fuelrow { width: min(640px, 100%); justify-self: center; }
+}
+
+/* Game Over: "순위 보기" as a gold trophy pill */
+.rank-btn {
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px 8px 13px;
+  border-radius: 999px;
+  border: 1.5px solid rgb(255 211 77 / .7);
+  background: linear-gradient(180deg, rgb(255 211 77 / .2), rgb(255 211 77 / .06));
+  color: #ffd34d;
+  font-family: var(--font-body); font-size: 14px; font-weight: 600;
+  box-shadow: 0 0 14px rgb(255 211 77 / .25);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background .15s, transform .1s;
+}
+.rank-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rank-btn:hover { background: linear-gradient(180deg, rgb(255 211 77 / .32), rgb(255 211 77 / .12)); }
+.rank-btn:active { transform: translateY(1px); }
+.rank-btn:focus-visible { outline: 3px solid var(--paint); outline-offset: 3px; }

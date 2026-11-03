@@ -14,16 +14,18 @@
 - 날 때마다 연료를 쓰고, 연료통을 먹으면 채워져요. 무지개 연료통을 먹으면 5초 동안 날아요.
 - 판마다 시간대와 날씨(맑음·비·눈)가 랜덤으로 바뀌어요.
 
-## 폴더 구조
+## 파일 구성
+
+폴더 없이 모든 파일이 맨 위에 있어요. GitHub 웹에서 파일 선택 창으로 한 번에 올릴 수 있게 하려고요.
 
 ```
-index.html          화면 구조
-css/style.css       디자인
-js/config.js        Firebase 설정 (firebaseConfig)
-js/leaderboard.js   순위 저장 (Firebase 또는 이 브라우저)
-js/game.js          게임
-assets/music.mp3    배경음악
-firestore.rules     순위 보안 규칙 (Firestore)
+index.html       화면 구조
+style.css        디자인
+config.js        Firebase 설정 (firebaseConfig)
+leaderboard.js   순위 저장 (Firebase 또는 이 브라우저)
+game.js          게임
+music.mp3        배경음악
+firestore.rules  순위 보안 규칙 (Firestore)
 ```
 
 ## 실행하기
@@ -43,7 +45,7 @@ python -m http.server 8000
 1. **Firestore Database** → 데이터베이스 만들기 (프로덕션 모드, 가까운 지역).
 2. **Firestore Database → 규칙** 탭에 `firestore.rules` 내용을 붙여 넣고 게시해요.
 3. **Authentication → 시작하기 → 로그인 방법 → 익명** 을 사용 설정해요. 회원가입 화면 없이 브라우저마다 고유 아이디를 주는 기능이에요.
-4. **프로젝트 설정 → 일반 → 내 앱**에서 웹 앱(</>)을 추가하고, 나오는 `firebaseConfig` 값들을 `js/config.js`에 넣어요.
+4. **프로젝트 설정 → 일반 → 내 앱**에서 웹 앱(</>)을 추가하고, 나오는 `firebaseConfig` 값들을 `config.js`에 넣어요.
 5. 사이트를 올린 주소(예: GitHub Pages)를 **Authentication → 설정 → 승인된 도메인**에 추가해요.
 
 `firebaseConfig`는 웹사이트에 공개돼도 되는 값이에요. 방문자가 할 수 있는 일은 보안 규칙으로 "순위 읽기"와 "내 기록 올리기"로만 제한돼요. 서비스 계정 키는 절대 넣지 마세요.
