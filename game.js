@@ -856,7 +856,7 @@
   }
 
   // Background music: browsers only allow sound after a tap, so it starts with the first game.
-  // The switch remembers the viewer's choice on this device.
+  // The speaker switch mutes everything (music and effects) and is remembered on this device.
   const music = new Audio('music.mp3');
   music.loop = true;
   music.volume = 0.4;
@@ -866,16 +866,28 @@
   function showMusicState() {
     soundBtn.classList.toggle('muted', !musicOn);
     soundBtn.setAttribute('aria-pressed', String(musicOn));
-    soundBtn.setAttribute('aria-label', musicOn ? '배경음악 끄기' : '배경음악 켜기');
+    soundBtn.setAttribute('aria-label', musicOn ? '소리 끄기' : '소리 켜기');
   }
-  const playMusic = () => { if (musicOn) music.play().catch(() => {}); };
+  let musicStarted = false;   // the first game start is the tap that unlocks sound
+  const playMusic = () => {
+    musicStarted = true;
+    if (musicOn && !document.hidden) music.play().catch(() => {});
+  };
   function toggleMusic() {
     musicOn = !musicOn;
     try { localStorage.setItem('supercar-music', musicOn ? 'on' : 'off'); } catch (e) {}
     showMusicState();
     if (musicOn) playMusic(); else music.pause();
+    // Drop keyboard focus: otherwise Enter (start/retry) or Space (fly) would "press" the
+    // speaker again and switch the music straight back on.
+    soundBtn.blur();
   }
   showMusicState();
+  // Leaving the page (another app, a locked phone, another tab) pauses the music; coming back resumes it
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) music.pause();
+    else if (musicStarted && musicOn) music.play().catch(() => {});
+  });
 
   let overTimer = 0;
   function start() {
@@ -943,6 +955,7 @@
     return actx;
   }
   function blip(freq, dur, type = 'square', vol = 0.05, delay = 0) {
+    if (!musicOn) return;
     try {
       const a = audio(), t = a.currentTime + delay;
       const o = a.createOscillator(), g = a.createGain();
@@ -960,6 +973,7 @@
 
   // Filtered white noise: the base of whooshes and crashes
   function noise(dur, filterType, f0, f1, vol, q = 1) {
+    if (!musicOn) return;
     try {
       const a = audio(), t = a.currentTime;
       const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
@@ -992,6 +1006,7 @@
   }
 
   function playBoost() {
+    if (!musicOn) return;
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
       if (actx.state === 'suspended') actx.resume();
@@ -1498,7 +1513,7 @@
   const rememberNick = n => { savedNick = n; try { localStorage.setItem('supercar-nick', n); } catch (e) {} };
 
   let board = [], boardState = 'loading';            // loading | ready | error
-  let lastScore = 0, myBest = 0, saveState = '';     // '' | ask | saving | best | saved | error
+  let lastScore = 0, myBest = 0, saveState = '';     // '' | ask | saving | best | saved | slow | error
   // online rows are keyed by this browser's player id; local rows by nickname
   const isMine = r => (LB.mode === 'online' ? r.id === LB.me : r.id === savedNick);
 
@@ -1569,7 +1584,8 @@
       saveState === 'saving' ? '순위에 올리는 중…'
       : saveState === 'best' ? `새 최고 기록!${where}`
       : saveState === 'saved' ? `내 최고 기록 ${myBest}점${where}`
-      : saveState === 'error' ? '순위에 올리지 못했어요' : '';
+      : saveState === 'slow' ? '기록을 보냈어요. 순위 반영이 늦으면 순위 보기를 눌러 확인해 보세요'
+      : saveState === 'error' ? '순위에 올리지 못했어요. 인터넷 연결을 확인해 주세요' : '';
     overRank.appendChild(msg);
     const see = document.createElement('button');
     see.type = 'button';
@@ -1588,7 +1604,9 @@
       myBest = res.myBest;
       saveState = res.best ? 'best' : 'saved';
     } catch (e) {
-      saveState = 'error';
+      // a timeout usually means the record went through but the reply got lost on the way back
+      saveState = e && e.code === 'timeout' ? 'slow' : 'error';
+      if (saveState === 'slow') setTimeout(() => LB.refresh(), 3000);
     }
     renderOverRank();
   }
@@ -1600,6 +1618,7 @@
     rankScreen.hidden = false;
     rankScreen.scrollTop = 0;
     renderBoard();
+    LB.refresh();   // pull the latest from the server in case live updates stalled
     $('rankClose').focus({ preventScroll: true });
   }
   function closeRank() {

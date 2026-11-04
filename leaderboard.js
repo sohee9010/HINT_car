@@ -53,8 +53,21 @@
     return { id: d.id, nick: String(v.nick || ''), score: Number(v.score) || 0, at: v.at && v.at.toMillis ? v.at.toMillis() : 0 };
   };
 
+  // Phones on some networks and in-app browsers (KakaoTalk, Instagram...) break Firestore's
+  // default streaming connection: writes reach the server but the reply and live updates never
+  // come back. So: long polling instead of streaming, a time limit on every call, and a fresh
+  // read from the server whenever the board is opened.
+  const TIMEOUT_MS = 12000;
+  const withTimeout = p => Promise.race([
+    p,
+    new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 'timeout' })), TIMEOUT_MS)),
+  ]);
+  let signedIn = null, notifyRows = () => {};
+  const query = () => fs.collection(COLLECTION).orderBy('score', 'desc').limit(BOARD_SIZE);
+
   const remote = {
     async start(onChange) {
+      notifyRows = onChange;
       onChange([], 'loading');
       try {
         for (const file of ['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-firestore-compat.js']) {
@@ -62,31 +75,43 @@
         }
         firebase.initializeApp(cfg);
         fs = firebase.firestore();
+        fs.settings({ experimentalForceLongPolling: true });
       } catch (e) {
         onChange(rows, 'error');
         return;
       }
       // Reading the board needs no sign-in; posting does. If anonymous sign-in is off in the
       // Firebase console, the board still shows and only submit() fails.
-      firebase.auth().signInAnonymously()
-        .then(cred => { uid = cred.user.uid; })
-        .catch(e => console.warn('Leaderboard: anonymous sign-in failed (enable it under Authentication → Sign-in method).', e.code));
+      signedIn = firebase.auth().signInAnonymously()
+        .then(cred => { uid = cred.user.uid; return uid; })
+        .catch(e => { console.warn('Leaderboard: anonymous sign-in failed (enable it under Authentication → Sign-in method).', e.code); return null; });
       // Live: Firestore pushes every change to the top of the board
-      fs.collection(COLLECTION).orderBy('score', 'desc').limit(BOARD_SIZE).onSnapshot(
+      query().onSnapshot(
         snap => { rows = snap.docs.map(toRow); onChange(rows, 'ready'); },
         () => onChange(rows, 'error'),
       );
     },
+    // One read straight from the server, for when live updates have stalled
+    async refresh() {
+      if (!fs) return;
+      try {
+        const snap = await withTimeout(query().get({ source: 'server' }));
+        rows = snap.docs.map(toRow);
+        notifyRows(rows, 'ready');
+      } catch (e) { /* keep what is shown */ }
+    },
     async submit(nick, score) {
-      if (!fs || !uid) throw new Error('offline');
+      if (!fs || !signedIn || !(await withTimeout(signedIn))) throw new Error('offline');
       const ref = fs.collection(COLLECTION).doc(uid);
-      const snap = await ref.get();
+      const snap = await withTimeout(ref.get({ source: 'server' }));
       const prev = snap.exists ? Number(snap.data().score) || 0 : -1;
       if (score > prev) {
-        await ref.set({ nick, score, at: firebase.firestore.FieldValue.serverTimestamp() });
+        await withTimeout(ref.set({ nick, score, at: firebase.firestore.FieldValue.serverTimestamp() }));
+        remote.refresh();
         return { best: true, myBest: score };
       }
-      if (snap.data().nick !== nick) await ref.update({ nick });   // keep the board's name current
+      if (snap.data().nick !== nick) await withTimeout(ref.update({ nick }));   // keep the board's name current
+      remote.refresh();
       return { best: false, myBest: prev };
     },
   };
@@ -105,6 +130,10 @@
     /** Record a run if it beats this player's best. Resolves { best, myBest }. */
     submit(nick, score) {
       return backend.submit(nick, score, notify);
+    },
+    /** Re-read the board from the server (online only); the result arrives through onChange. */
+    refresh() {
+      return backend.refresh ? backend.refresh() : Promise.resolve();
     },
   };
 })();
